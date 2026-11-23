@@ -57,6 +57,11 @@ async function flipSignIn() {
   status.textContent = error
     ? error.message
     : 'Successfully logged in!';
+  
+if (!error) {
+  await loadCloudInventory();
+}
+  
 }
 
 async function flipSignOut() {
@@ -68,6 +73,33 @@ async function flipSignOut() {
 const KEY='fliptrack_inventory_v1';let items=[];let editingId=null;let pendingPhotos={front:null,back:null};const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);const cents=v=>Math.round(Number(v||0)*100);const el=id=>document.getElementById(id);const dollars=v=>(Number(v||0)/100).toFixed(2);
 try{const stored=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(stored))items=stored;}catch(e){alert('Could not read saved inventory.');}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(items));return true}catch(e){alert('Storage is unavailable or full. Your change was not saved. Export your inventory if possible.');return false}}
+
+async function loadCloudInventory() {
+  const { data: { user }, error: authError } =
+    await fliptrackDB.auth.getUser();
+
+  if (authError || !user) {
+    alert('Please sign in first.');
+    return;
+  }
+
+  const { data, error } = await fliptrackDB
+    .from('inventory')
+    .select('*')
+    .eq('user_id', user.id);
+
+  if (error) {
+    alert('Cloud loading error: ' + error.message);
+    return;
+  }
+
+  if (data && data.length > 0) {
+    alert('Found ' + data.length + ' cards in the cloud.');
+  } else {
+    alert('Cloud connection successful. No cloud cards yet.');
+  }
+}
+
 function photoElement(src,label){const box=document.createElement('div');box.className='photo-box';const img=document.createElement('img');img.src=src;img.alt=label;const caption=document.createElement('span');caption.textContent=label;box.append(img,caption);return box}
 function showPreviews(){for(const side of ['front','back']){const box=el(side+'-preview');box.replaceChildren();if(pendingPhotos[side])box.append(photoElement(pendingPhotos[side],side+' photo'));}}
 function cancelEdit(){editingId=null;pendingPhotos={front:null,back:null};el('form').reset();showPreviews();el('form-title').textContent='Add an item';el('submit-button').textContent='Save item';el('cancel-edit').hidden=true;}
