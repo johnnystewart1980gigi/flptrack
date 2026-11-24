@@ -152,6 +152,6 @@ if(save()){
 }else{
   items=old;
 }
-);el('cancel-edit').onclick=cancelEdit;el('search').addEventListener('input',render);el('export').onclick=()=>{const blob=new Blob([JSON.stringify(items,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='fliptrack-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};render();}
+                                              });el('cancel-edit').onclick=cancelEdit;el('search').addEventListener('input',render);el('export').onclick=()=>{const blob=new Blob([JSON.stringify(items,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='fliptrack-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};render();}
 </script></body></html>
 
