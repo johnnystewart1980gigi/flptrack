@@ -74,6 +74,36 @@ const KEY='fliptrack_inventory_v1';let items=[];let editingId=null;let pendingPh
 try{const stored=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(stored))items=stored;}catch(e){alert('Could not read saved inventory.');}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(items));return true}catch(e){alert('Storage is unavailable or full. Your change was not saved. Export your inventory if possible.');return false}}
 
+async function saveCardToCloud(item) {
+  const { data: { user }, error: authError } =
+    await fliptrackDB.auth.getUser();
+
+  if (authError || !user) {
+    alert('Please sign in before saving to the cloud.');
+    return false;
+  }
+
+  const { error } = await fliptrackDB
+    .from('inventory')
+    .insert({
+      user_id: user.id,
+      card_name: item.name,
+      purchase_price: Number(item.cost || 0) / 100,
+      selling_price: item.sold
+        ? Number(item.sale || 0) / 100
+        : null,
+      status: item.sold ? 'sold' : 'in_stock'
+    });
+
+  if (error) {
+    alert('Cloud save error: ' + error.message);
+    return false;
+  }
+
+  alert('Card saved to Supabase!');
+  return true;
+}
+
 async function loadCloudInventory() {
   const { data: { user }, error: authError } =
     await fliptrackDB.auth.getUser();
