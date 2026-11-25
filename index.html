@@ -411,7 +411,23 @@ main > section[hidden] {
     originalEdit(item);
   };
 
-  showPage('home');
+  showPage('account');
+
+const loginnav = document.querySelector('.flip-nav');
+loginnav.style.display = 'none';
+
+fliptrackDB.auth.onAuthStateChange((event, session) => {
+  if (event === 'INITIAL_SESSION' ||
+      event === 'SIGNED_IN' ||
+      event === 'SIGNED_OUT') {
+
+    loginnav.style.display = session ? 'flex' : 'none';
+    showPage(session ? 'home' : 'account');
+
+    document.getElementById('account-status').textContent =
+      session ? 'Successfully logged in!' : 'Not signed in';
+  }
+});
 })();
 </script>
 <style>
