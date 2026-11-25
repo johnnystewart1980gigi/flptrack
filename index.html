@@ -247,5 +247,173 @@ el('scan-photo').addEventListener('change', async e => {
     button.disabled = false;
     e.target.value = '';
   }
-});</script></body></html>
+});</script>
+
+<style>
+main {
+  padding-bottom: 110px !important;
+}
+main > section[hidden] {
+  display: none !important;
+}
+.flip-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  background: #101827;
+  border-top: 1px solid #344563;
+  padding: 8px 4px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+}
+.flip-nav button {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 2px;
+  background: transparent;
+  color: #aebbd0;
+  font-size: 11px;
+}
+.flip-nav button.active {
+  background: #235bca;
+  color: white;
+}
+.flip-nav span {
+  display: block;
+  font-size: 23px;
+  margin-bottom: 4px;
+}
+</style>
+
+<nav class="flip-nav" aria-label="Main navigation">
+  <button type="button" data-page="home">
+    <span>🏠</span>Home
+  </button>
+  <button type="button" data-page="inventory">
+    <span>📦</span>Inventory
+  </button>
+  <button type="button" data-page="add">
+    <span>➕</span>Add Card
+  </button>
+  <button type="button" data-page="sales">
+    <span>📊</span>Sales
+  </button>
+  <button type="button" data-page="account">
+    <span>👤</span>Account
+  </button>
+</nav>
+
+<script>
+(function () {
+  const dashboard =
+    document.getElementById('revenue').closest('section');
+
+  const inventoryPage =
+    document.getElementById('items').closest('section');
+
+  const editor = document.getElementById('editor');
+  const scanner = document.getElementById('scanner');
+  const account = document.getElementById('account');
+
+  const salesPage = document.createElement('section');
+  salesPage.id = 'sales-page';
+  salesPage.innerHTML =
+    '<h2>Sales History</h2><div id="sales-list"></div>';
+
+  document.querySelector('main').appendChild(salesPage);
+
+  const pages = {
+    home: [dashboard],
+    inventory: [inventoryPage],
+    add: [scanner, editor],
+    sales: [salesPage],
+    account: [account]
+  };
+
+  function showSales() {
+    const list = document.getElementById('sales-list');
+    list.replaceChildren();
+
+    const soldItems = items.filter(item => item.sold);
+
+    if (!soldItems.length) {
+      list.textContent = 'No sales recorded yet.';
+      return;
+    }
+
+    soldItems.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'item';
+
+      const title = document.createElement('strong');
+      title.textContent = item.name;
+
+      const sale = document.createElement('p');
+      sale.textContent =
+        'Sold: ' + money(item.sale / 100);
+
+      const profit = document.createElement('p');
+      const net =
+        item.sale - item.cost -
+        (item.fees || 0) -
+        (item.shipping || 0);
+
+      profit.textContent =
+        'Profit: ' + money(net / 100);
+
+      profit.className =
+        net < 0 ? 'negative' : 'positive';
+
+      row.append(title, sale, profit);
+      list.appendChild(row);
+    });
+  }
+
+  function showPage(page) {
+    Object.values(pages).flat().forEach(section => {
+      section.hidden = true;
+    });
+
+    pages[page].forEach(section => {
+      section.hidden = false;
+    });
+
+    document.querySelectorAll('.flip-nav button')
+      .forEach(button => {
+        const active = button.dataset.page === page;
+        button.classList.toggle('active', active);
+        if (active) {
+          button.setAttribute('aria-current', 'page');
+        } else {
+          button.removeAttribute('aria-current');
+        }
+      });
+
+    if (page === 'sales') showSales();
+
+    window.scrollTo(0, 0);
+  }
+
+  document.querySelectorAll('.flip-nav button')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        showPage(button.dataset.page);
+      });
+    });
+
+  const originalEdit = editItem;
+
+  editItem = function(item) {
+    showPage('add');
+    originalEdit(item);
+  };
+
+  showPage('home');
+})();
+</script>
+</body>
+</html>
 
