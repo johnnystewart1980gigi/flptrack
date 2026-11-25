@@ -12,7 +12,16 @@ body{font-family:system-ui;background:#f3f5f9;color:#172033;margin:0}main{max-wi
 </section>
 <header><h1>📦 FlipTrack</h1><p>Know your numbers. Grow your resale business.</p></header>
 <section><h2>Dashboard</h2><div class="stats"><div class="stat">Sales revenue<strong id="revenue">$0.00</strong></div><div class="stat">Profit<strong id="profit">$0.00</strong></div><div class="stat">Items sold<strong id="sold">0</strong></div><div class="stat">Inventory cost (unsold)<strong id="inventory">$0.00</strong></div><div class="stat">Total purchase cost<strong id="total-cost">$0.00</strong></div><div class="stat">Cost of sold items<strong id="sold-cost">$0.00</strong></div></div><p class="muted">Total purchase cost includes sold and unsold items currently in your records. Profit subtracts the purchase costs, selling fees, and shipping of sold items.</p></section>
-<section id="editor"><h2 id="form-title">Add an item</h2><form id="form"><label for="name">Item name</label><input id="name" required maxlength="120" placeholder="e.g. Rookie football card"><label for="cost">Purchase cost ($)</label><input id="cost" type="number" min="0" step="0.01" required placeholder="20.00"><label for="sale">Selling price ($) — leave blank if unsold</label><input id="sale" type="number" min="0" step="0.01" placeholder="45.00"><label for="fees">Selling fees ($)</label><input id="fees" type="number" min="0" step="0.01" placeholder="6.00"><label for="shipping">Shipping ($)</label><input id="shipping" type="number" min="0" step="0.01" placeholder="4.00">
+<section id="scanner">
+  <h2>AI Card Scanner</h2>
+  <button type="button"
+    onclick="document.getElementById('scan-photo').click()">
+    📸 Scan & Identify Card
+  </button>
+  <input id="scan-photo" type="file"
+    accept="image/*" hidden>
+  <p id="scan-status" aria-live="polite"></p>
+</section><section id="editor"><h2 id="form-title">Add an item</h2><form id="form"><label for="name">Item name</label><input id="name" required maxlength="120" placeholder="e.g. Rookie football card"><label for="cost">Purchase cost ($)</label><input id="cost" type="number" min="0" step="0.01" required placeholder="20.00"><label for="sale">Selling price ($) — leave blank if unsold</label><input id="sale" type="number" min="0" step="0.01" placeholder="45.00"><label for="fees">Selling fees ($)</label><input id="fees" type="number" min="0" step="0.01" placeholder="6.00"><label for="shipping">Shipping ($)</label><input id="shipping" type="number" min="0" step="0.01" placeholder="4.00">
 <div class="photo-fields"><div><label>Front photo</label><button type="button" id="camera-front">📷 Take Photo</button><button type="button" class="secondary" id="upload-front">🖼️ Upload Photo</button><input class="visually-hidden" tabindex="-1" aria-label="Take front photo" id="front-camera" type="file" accept="image/*" capture="environment"><input class="visually-hidden" tabindex="-1" aria-label="Upload front photo" id="front" type="file" accept="image/*"><div id="front-preview" class="photos"></div><button type="button" class="secondary" id="remove-front">Remove front</button></div><div><label>Back photo</label><button type="button" id="camera-back">📷 Take Photo</button><button type="button" class="secondary" id="upload-back">🖼️ Upload Photo</button><input class="visually-hidden" tabindex="-1" aria-label="Take back photo" id="back-camera" type="file" accept="image/*" capture="environment"><input class="visually-hidden" tabindex="-1" aria-label="Upload back photo" id="back" type="file" accept="image/*"><div id="back-preview" class="photos"></div><button type="button" class="secondary" id="remove-back">Remove back</button></div></div>
 <p class="notice">Photos are resized for browser storage. Use Export backup regularly. Camera behavior depends on your phone/browser.</p><button type="submit" id="submit-button">Save item</button> <button type="button" class="secondary" id="cancel-edit" hidden>Cancel edit</button></form></section>
 <section><div class="row"><h2>Inventory</h2><button class="secondary" id="export" type="button">Export backup</button></div><label for="search">Search inventory</label><input id="search" type="search" placeholder="Search by card or item name"><p class="muted" id="search-count"></p><div id="items"></div></section><p class="muted">Data and photos are stored only in this browser on this device. Export backups regularly. Clearing browser data can erase entries. Do not enter sensitive information.</p></main>
@@ -179,5 +188,64 @@ if(save()){
   items=old;
 }
                                               });el('cancel-edit').onclick=cancelEdit;el('search').addEventListener('input',render);el('export').onclick=()=>{const blob=new Blob([JSON.stringify(items,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='fliptrack-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};render();
-</script></body></html>
+el('scan-photo').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const status = el('scan-status');
+  const button = document.querySelector('#scanner button');
+  button.disabled = true;
+
+  try {
+    status.textContent = 'Identifying your card...';
+
+    const { data: { session } } =
+      await fliptrackDB.auth.getSession();
+
+    if (!session) {
+      throw new Error('Please log in first.');
+    }
+
+    const image = await compressPhoto(file);
+
+    const { data, error } =
+      await fliptrackDB.functions.invoke('identify-card', {
+        body: { image },
+        headers: {
+          Authorization: 'Bearer ' + session.access_token
+        }
+      });
+
+    if (error) throw error;
+    if (!data || data.error) {
+      throw new Error(data?.error || 'No result received.');
+    }
+
+    const name = [
+      data.year,
+      data.manufacturer,
+      data.set,
+      data.player,
+      data.card_number ? '#' + data.card_number : '',
+      data.parallel,
+      data.serial_number
+    ].filter(Boolean).join(' ');
+
+    if (name) el('name').value = name.slice(0, 120);
+
+    pendingPhotos.front = image;
+    showPreviews();
+
+    status.textContent =
+      'Scan complete. Review details before saving.';
+
+    el('editor').scrollIntoView({ behavior: 'smooth' });
+
+  } catch (error) {
+    status.textContent = 'Scan failed: ' + error.message;
+  } finally {
+    button.disabled = false;
+    e.target.value = '';
+  }
+});</script></body></html>
 
