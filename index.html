@@ -4,7 +4,7 @@
 <section id="account"><h2>FlipTrack Account</h2><input id="email" type="email" placeholder="Email"><input id="password" type="password" placeholder="Password"><button id="signup">Sign Up</button><button id="login">Log In</button><button id="logout">Log Out</button><p id="status" role="status">Connecting…</p></section>
 <section id="home" hidden><h2>Dashboard</h2><div class="stats" id="stats"></div><p class="muted">Profit subtracts purchase costs, selling fees and shipping.</p><p id="sync-status" role="status"></p></section>
 <section id="add" hidden><h2>AI Card Scanner</h2><button id="scan">📸 Scan & Identify Card</button><input id="scan-file" type="file" accept="image/*" hidden><p id="scan-status" role="status"></p><h2 id="form-title">Add an item</h2><form id="form"><label>Item name<input id="name" required maxlength="120"></label><label>Purchase cost ($)<input id="cost" type="number" min="0" step="0.01" required></label><label>Selling price ($) — blank if unsold<input id="sale" type="number" min="0" step="0.01"></label><label>Selling fees ($)<input id="fees" type="number" min="0" step="0.01"></label><label>Shipping ($)<input id="shipping" type="number" min="0" step="0.01"></label><div class="photos" id="photo-fields"></div><button id="submit">Save item</button><button type="button" class="secondary" id="cancel">Cancel edit</button></form></section>
-<section id="inventory" hidden><h2>Inventory</h2><button id="export">Export backup</button><button id="reload" class="secondary">Refresh cloud inventory</button><input id="search" type="search" placeholder="Search inventory"><p id="count"></p><div id="items"></div><p class="muted">Photos, fees and shipping are stored on this device for your account. Export backups regularly.</p></section><section id="sales" hidden><h2>Sales History</h2><div id="sales-list"></div></section></main><nav hidden><button data-page="home"><span>🏠</span>Home</button><button data-page="inventory"><span>📦</span>Inventory</button><button data-page="add"><span>➕</span>Add Card</button><button data-page="sales"><span>📊</span>Sales</button><button data-page="account"><span>👤</span>Account</button></nav>
+<section id="inventory" hidden><h2>Inventory</h2><button id="export">Export backup</button><button id="reload" class="secondary">Refresh cloud inventory</button><input id="search" type="search" placeholder="Search inventory"><p id="count"></p><div id="items"></div><p class="muted">Photos, fees and shipping sync to the cloud when you save an item. Export backups regularly. ac</p></section><section id="sales" hidden><h2>Sales History</h2><div id="sales-list"></div></section></main><nav hidden><button data-page="home"><span>🏠</span>Home</button><button data-page="inventory"><span>📦</span>Inventory</button><button data-page="add"><span>➕</span>Add Card</button><button data-page="sales"><span>📊</span>Sales</button><button data-page="account"><span>👤</span>Account</button></nav>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
 'use strict';
 const db=window.supabase.createClient('https://zstptoovvjdrrgoorrza.supabase.co','sb_publishable_j5K9BGow9USdQsEjIsKFbg_2REcqzUy');
@@ -17,7 +17,36 @@ function persist(u,a){try{localStorage.setItem(key(u),JSON.stringify(a));return 
 function reset(){editing=null;photos={front:null,back:null};el('form').reset();el('form-title').textContent='Add an item';el('submit').textContent='Save item';preview()}
 function preview(){for(const side of ['front','back']){const p=el(side+'-preview');p.replaceChildren();if(photos[side]){const img=document.createElement('img');img.src=photos[side];img.alt=side;p.append(img)}}}
 function switchAccount(session){const next=session?.user?.id||null;if(next===uid&&ready)return;generation++;uid=next;ready=false;items=[];reset();render();document.querySelector('nav').hidden=!uid;show(uid?'home':'account');el('status').textContent=uid?'Successfully logged in!':'Not signed in';el('password').value='';if(uid){const g=generation;setTimeout(()=>load(g),0)}}
-async function load(g=generation){const u=uid;if(!u||busy)return;el('sync-status').textContent='Loading inventory…';const {data,error}=await db.from('inventory').select('*').eq('user_id',u);if(g!==generation||u!==uid)return;if(error){el('sync-status').textContent='Cloud loading failed: '+error.message;return}const local=read(u);items=(data||[]).map(c=>{const old=local.find(i=>String(i.cloudId)===String(c.id));return {id:'cloud-'+c.id,cloudId:c.id,name:c.card_name||'Unnamed card',cost:cents(c.purchase_price),sale:cents(c.selling_price),sold:c.status==='sold',fees:old?.fees||0,shipping:old?.shipping||0,frontPhoto:old?.frontPhoto||null,backPhoto:old?.backPhoto||null}});ready=true;render();el('sync-status').textContent='Loaded '+items.length+' cloud card(s).'}
+async function load(g=generation){
+const u=uid;
+if(!u||busy)return;
+el('sync-status').textContent='Loading inventory…';
+const {data,error}=await db.from('inventory').select('*').eq('user_id',u);
+if(g!==generation||u!==uid)return;
+if(error){
+el('sync-status').textContent='Cloud loading failed: '+error.message;
+return;
+}
+const local=read(u);
+items=(data||[]).map(c=>{
+const old=local.find(i=>String(i.cloudId)===String(c.id));
+return {
+id:'cloud-'+c.id,
+cloudId:c.id,
+name:c.card_name||'Unnamed card',
+cost:cents(c.purchase_price),
+sale:cents(c.selling_price),
+sold:c.status==='sold',
+fees:c.fees==null?(old?.fees||0):cents(c.fees),
+shipping:c.shipping==null?(old?.shipping||0):cents(c.shipping),
+frontPhoto:c.front_photo??old?.frontPhoto??null,
+backPhoto:c.back_photo??old?.backPhoto??null
+};
+});
+ready=true;
+render();
+el('sync-status').textContent='Loaded '+items.length+' cloud card(s).';
+}
 async function auth(kind){const email=el('email').value.trim(),password=el('password').value;if(!email||!password)return alert('Enter email and password.');try{const {data,error}=await db.auth[kind]({email,password});el('status').textContent=error?error.message:data.session?'Successfully logged in!':'Check your email to confirm your account.'}catch(e){el('status').textContent=e.message}}
 el('signup').onclick=()=>auth('signUp');el('login').onclick=()=>auth('signInWithPassword');el('logout').onclick=async()=>{const {error}=await db.auth.signOut();if(error)alert(error.message)};
 function net(i){return i.sale-i.cost-i.fees-i.shipping}function sum(a,f){return a.reduce((s,i)=>s+f(i),0)}
@@ -25,7 +54,54 @@ function render(){const sold=items.filter(i=>i.sold);const stats=[['Sales revenu
 function draw(list,arr,actions){list.replaceChildren();if(!arr.length)list.textContent='No items yet.';for(const i of arr){const d=document.createElement('div');d.className='item';const t=document.createElement('strong');t.textContent=i.name;d.append(t);for(const side of ['frontPhoto','backPhoto'])if(i[side]){const img=document.createElement('img');img.src=i[side];img.alt=side;d.append(img)}const p=document.createElement('p');p.textContent='Cost: '+money(i.cost)+' · '+(i.sold?'Sold: '+money(i.sale)+' · Profit: '+money(net(i)):'In stock');d.append(p);if(actions){const button=(label,fn)=>{const b=document.createElement('button');b.textContent=label;b.onclick=fn;d.append(b)};button('Edit',()=>edit(i));if(!i.sold)button('Mark as Sold',()=>{edit(i);el('sale').focus()});button('Delete',()=>remove(i))}list.append(d)}}
 function edit(i){editing=i.cloudId;el('name').value=i.name;for(const k of ['cost','fees','shipping'])el(k).value=dollars(i[k]);el('sale').value=i.sold?dollars(i.sale):'';photos={front:i.frontPhoto,back:i.backPhoto};preview();el('form-title').textContent='Edit item';el('submit').textContent='Save changes';show('add')}
 function canWrite(){if(!uid||!ready||busy){alert('Sign in and wait for inventory to finish loading.');return false}return true}
-el('form').onsubmit=async e=>{e.preventDefault();if(!canWrite())return;const u=uid,g=generation,id=editing;const i={name:el('name').value.trim(),cost:cents(el('cost').value),sale:cents(el('sale').value),fees:cents(el('fees').value),shipping:cents(el('shipping').value),sold:el('sale').value!=='',frontPhoto:photos.front,backPhoto:photos.back};if(!i.name)return;const row={user_id:u,card_name:i.name,purchase_price:i.cost/100,selling_price:i.sold?i.sale/100:null,status:i.sold?'sold':'in_stock'};busy=true;try{const q=id==null?db.from('inventory').insert(row):db.from('inventory').update(row).eq('id',id).eq('user_id',u);const {data,error}=await q.select('id').single();if(error)throw error;const saved={...i,cloudId:data.id,id:'cloud-'+data.id};const cache=read(u).filter(x=>String(x.cloudId)!==String(data.id));persist(u,[saved,...cache]);if(g===generation){items=[saved,...items.filter(x=>String(x.cloudId)!==String(data.id))];reset();render();show('inventory')}}catch(e){alert('Cloud save failed: '+e.message)}finally{busy=false;if(g!==generation&&uid)load()}};
+el('form').onsubmit=async e=>{
+e.preventDefault();
+if(!canWrite())return;
+const u=uid,g=generation,id=editing;
+const i={
+name:el('name').value.trim(),
+cost:cents(el('cost').value),
+sale:cents(el('sale').value),
+fees:cents(el('fees').value),
+shipping:cents(el('shipping').value),
+sold:el('sale').value!=='',
+frontPhoto:photos.front,
+backPhoto:photos.back
+};
+if(!i.name)return;
+const row={
+user_id:u,
+card_name:i.name,
+purchase_price:i.cost/100,
+selling_price:i.sold?i.sale/100:null,
+status:i.sold?'sold':'in_stock',
+fees:i.fees/100,
+shipping:i.shipping/100
+};
+const previous=items.find(x=>x.cloudId===id);
+if(id==null||i.frontPhoto!==previous?.frontPhoto||i.frontPhoto)row.front_photo=i.frontPhoto||'';
+if(id==null||i.backPhoto!==previous?.backPhoto||i.backPhoto)row.back_photo=i.backPhoto||'';
+busy=true;
+try{
+const q=id==null?db.from('inventory').insert(row):db.from('inventory').update(row).eq('id',id).eq('user_id',u);
+const {data,error}=await q.select('id').single();
+if(error)throw error;
+const saved={...i,cloudId:data.id,id:'cloud-'+data.id};
+const cache=read(u).filter(x=>String(x.cloudId)!==String(data.id));
+persist(u,[saved,...cache]);
+if(g===generation){
+items=[saved,...items.filter(x=>String(x.cloudId)!==String(data.id))];
+reset();
+render();
+show('inventory');
+}
+}catch(e){
+alert('Cloud save failed: '+e.message);
+}finally{
+busy=false;
+if(g!==generation&&uid)load();
+}
+}; 
 async function remove(i){if(!canWrite()||!confirm('Delete this item?'))return;const u=uid,g=generation;busy=true;try{const {data,error}=await db.from('inventory').delete().eq('id',i.cloudId).eq('user_id',u).select('id').single();if(error)throw error;persist(u,read(u).filter(x=>String(x.cloudId)!==String(i.cloudId)));if(g===generation){items=items.filter(x=>x.cloudId!==i.cloudId);render()}}catch(e){alert('Delete failed: '+e.message)}finally{busy=false;if(g!==generation&&uid)load()}}
 function compress(file){return new Promise((resolve,reject)=>{if(!file.type.startsWith('image/'))return reject(Error('Choose an image.'));const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{try{const s=Math.min(1,900/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*s));c.height=Math.max(1,Math.round(img.height*s));c.getContext('2d').drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',.65))}catch(e){reject(e)}finally{URL.revokeObjectURL(url)}};img.onerror=()=>{URL.revokeObjectURL(url);reject(Error('Could not open photo.'))};img.src=url})}
 for(const side of ['front','back']){const d=document.createElement('div');d.textContent=side+' photo';for(const camera of [true,false]){const input=document.createElement('input');input.type='file';input.accept='image/*';input.hidden=true;if(camera)input.setAttribute('capture','environment');const b=document.createElement('button');b.type='button';b.textContent=camera?'📷 Take Photo':'🖼️ Upload Photo';b.onclick=()=>input.click();input.onchange=async()=>{const g=generation;try{if(input.files[0]){const image=await compress(input.files[0]);if(g===generation){photos[side]=image;preview()}}}catch(e){alert(e.message)}finally{input.value=''}};d.append(b,input)}const p=document.createElement('div');p.id=side+'-preview';const b=document.createElement('button');b.type='button';b.textContent='Remove '+side;b.onclick=()=>{photos[side]=null;preview()};d.append(p,b);el('photo-fields').append(d)}
